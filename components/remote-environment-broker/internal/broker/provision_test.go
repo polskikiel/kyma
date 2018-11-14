@@ -17,8 +17,11 @@ import (
 
 	"github.com/kyma-project/kyma/components/remote-environment-broker/pkg/client/clientset/versioned/fake"
 	"github.com/kyma-project/kyma/components/remote-environment-broker/platform/logger/spy"
+	"github.com/sirupsen/logrus"
+	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8testing "k8s.io/client-go/testing"
 )
 
@@ -269,6 +272,90 @@ func TestProvisionErrorOnCreatingEventActivation(t *testing.T) {
 	}
 }
 
+func TestProvisionAlreadyExistsErrorOnCreatingEventActivation(t *testing.T) {
+	// GIVEN
+	mockInstanceStorage := &automock.InstanceStorage{}
+	defer mockInstanceStorage.AssertExpectations(t)
+	mockStateGetter := &automock.InstanceStateGetter{}
+	defer mockStateGetter.AssertExpectations(t)
+	mockOperationStorage := &automock.OperationStorage{}
+	defer mockOperationStorage.AssertExpectations(t)
+	mockAccessChecker := &accessAutomock.ProvisionChecker{}
+	defer mockAccessChecker.AssertExpectations(t)
+	mockReFinder := &automock.ReFinder{}
+	defer mockReFinder.AssertExpectations(t)
+	mockServiceInstanceGetter := &automock.ServiceInstanceGetter{}
+	defer mockServiceInstanceGetter.AssertExpectations(t)
+
+	clientset := fake.NewSimpleClientset()
+	clientset.PrependReactor("create", "eventactivations", func(action k8testing.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, apiErrors.NewAlreadyExists(schema.GroupResource{}, "fix")
+	})
+
+	defaultWaitTime := time.Minute
+	mockStateGetter.On("IsProvisioned", fixInstanceID()).
+		Return(false, nil).Once()
+
+	mockStateGetter.On("IsProvisioningInProgress", fixInstanceID()).
+		Return(internal.OperationID(""), false, nil)
+
+	mockOperationIDProvider := func() (internal.OperationID, error) {
+		return fixOperationID(), nil
+	}
+
+	mockOperationStorage.On("Insert", fixNewCreateInstanceOperation()).
+		Return(nil)
+
+	mockInstanceStorage.On("Insert", fixNewInstance()).
+		Return(nil)
+
+	mockReFinder.On("FindOneByServiceID", internal.RemoteServiceID(fixServiceID())).
+		Return(fixRe(), nil).
+		Once()
+
+	mockAccessChecker.On("CanProvision", fixInstanceID(), internal.RemoteServiceID(fixServiceID()), internal.Namespace(fixNs()), defaultWaitTime).
+		Return(access.CanProvisionOutput{Allowed: true}, nil)
+
+	mockServiceInstanceGetter.On("GetByNamespaceAndExternalID", fixNs(), string(fixInstanceID())).Return(FixServiceInstance(), nil)
+
+	mockInstanceStorage.On("UpdateState", fixInstanceID(), internal.InstanceStateSucceeded).
+		Return(nil).
+		Once()
+
+	mockOperationStorage.On("UpdateStateDesc", fixInstanceID(), fixOperationID(), internal.OperationStateSucceeded, ptrStr("provisioning succeeded")).
+		Return(nil)
+
+	log := spy.NewLogSink()
+
+	sut := NewProvisioner(mockInstanceStorage,
+		mockStateGetter,
+		mockOperationStorage,
+		mockOperationStorage,
+		mockAccessChecker,
+		mockReFinder,
+		mockServiceInstanceGetter,
+		clientset.ApplicationconnectorV1alpha1(),
+		mockInstanceStorage,
+		mockOperationIDProvider, log.Logger)
+
+	asyncFinished := make(chan struct{}, 0)
+	sut.asyncHook = func() {
+		asyncFinished <- struct{}{}
+	}
+
+	// WHEN
+	_, err := sut.Provision(context.Background(), osbContext{}, fixProvisionRequest())
+	assert.NoError(t, err)
+
+	// THEN
+	select {
+	case <-asyncFinished:
+		log.AssertLogged(t, logrus.InfoLevel, "EventActivation `service-id` already exists")
+	case <-time.After(time.Second):
+		assert.Fail(t, "Async processing not finished")
+	}
+}
+
 func TestProvisionErrorOnGettingServiceInstance(t *testing.T) {
 	// GIVEN
 	mockInstanceStorage := &automock.InstanceStorage{}
@@ -495,4 +582,8 @@ func fixErrWhileCreatingEA() *string {
 func fixErrWhileGettingServiceInstance() *string {
 	err := fmt.Sprintf("provisioning failed while creating EventActivation on error: while getting service instance with external id: %q in namespace: %q: custom error", fixInstanceID(), fixNs())
 	return &err
+}
+
+func ptrStr(s string) *string {
+	return &s
 }

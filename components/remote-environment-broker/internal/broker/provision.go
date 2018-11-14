@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/sirupsen/logrus"
+	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -220,10 +221,15 @@ func (svc *ProvisionService) createEaOnSuccessProvision(reName, reID, ns string,
 				SourceID:    reName,
 			},
 		})
-	if err != nil {
+	switch {
+	case err == nil:
+		svc.log.Infof("Created EventActivation: [%s], in namespace: [%s]", reID, ns)
+	case apiErrors.IsAlreadyExists(err):
+		svc.log.Infof("%v: EventActivation `%s` already exists", err, reID)
+	default:
 		return errors.Wrapf(err, "while creating EventActivation with name: %q in namespace: %q", reID, ns)
 	}
-	svc.log.Infof("Created EventActivation: [%s], in namespace: [%s]", reID, ns)
+
 	return nil
 }
 
