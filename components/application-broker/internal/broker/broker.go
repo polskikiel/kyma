@@ -14,7 +14,7 @@ import (
 	"github.com/kyma-project/kyma/components/application-broker/platform/idprovider"
 
 	gcli "github.com/machinebox/graphql"
-	osb "github.com/pmorie/go-open-service-broker-client/v2"
+	osb "github.com/kubernetes-sigs/go-open-service-broker-client/v2"
 	"github.com/sirupsen/logrus"
 	istioCli "istio.io/client-go/pkg/clientset/versioned"
 	"k8s.io/client-go/tools/cache"

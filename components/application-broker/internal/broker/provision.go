@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	osb "github.com/pmorie/go-open-service-broker-client/v2"
+	osb "github.com/kubernetes-sigs/go-open-service-broker-client/v2"
 	"github.com/sirupsen/logrus"
 
 	istioauthenticationalpha1 "istio.io/api/authentication/v1alpha1"

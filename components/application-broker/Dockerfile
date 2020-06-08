@@ -1,4 +1,4 @@
-FROM golang:1.12.10-alpine3.10 as builder
+FROM golang:1.13.10-alpine3.10 as builder
 
 ENV SRC_DIR=/go/src/github.com/kyma-project/kyma/components/application-broker
 ADD . $SRC_DIR
@@ -12,6 +12,7 @@ RUN mkdir -p tmp
 
 WORKDIR $SRC_DIR
 
+RUN go mod vendor
 RUN CGO_ENABLED=0 go build -o /application-broker ./cmd/broker
 
 FROM alpine:latest as certs

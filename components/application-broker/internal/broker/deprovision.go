@@ -9,7 +9,7 @@ import (
 	v1client "github.com/kyma-project/kyma/components/application-broker/pkg/client/clientset/versioned/typed/applicationconnector/v1alpha1"
 
 	"github.com/pkg/errors"
-	osb "github.com/pmorie/go-open-service-broker-client/v2"
+	osb "github.com/kubernetes-sigs/go-open-service-broker-client/v2"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
