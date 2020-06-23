@@ -252,6 +252,11 @@ spec:
             ns=$(echo $line | cut -d " " -f2)
             chart=$(echo $line | cut -d " " -f3)
 
+            if [[ "$release" = "hb-"* ]]; then
+              echo "------> Release ${release} has been created by the Helm Broker"
+              continue
+            fi
+
             if [[ " ${CHART_BLACKLIST[@]} " =~ " ${chart} " ]]; then
               echo "------> Release ${release} is blacklisted by ${chart}"
               continue
